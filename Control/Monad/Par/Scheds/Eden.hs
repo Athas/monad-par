@@ -11,7 +11,6 @@ where
 import Control.Monad
 import Control.Monad.Par.Class
 import Control.Monad.Trans
-import Control.Parallel.Eden hiding (new)
 import Control.Parallel.Eden.Edi hiding (fork)
 
 newtype Par a = Par { runPar :: IO a }
