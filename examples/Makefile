@@ -1,114 +1,32 @@
-include common.mk
 
-# This Makefile is largely redundant with the benchmark script, but it
-# provides a simple (and parallel) way to build and test the examples.
-# 
-# Entrypoints:
-#   make all
-#   make test
+# This is just here as a reminder of what to run, or for people whose
+# fingers are in the habit of typing "make".
 
-# ================================================================================
+# Run "make install-all" in the parent directory before using the below:
 
-BENCHMARKS= queens.hs mandel.hs blackscholes.hs nbody.hs \
-            parfib_monad.hs parfib_pseq.hs randomGen.hs \
-            primes.hs cholesky/cholesky.hs coins.hs \
-            quicksort/parquicksort_monad.hs quicksort/parquicksort_pseq.hs \
-            sumeuler/sumeuler.hs \
-            matmult/MatMult.hs \
-            minimax/Main.hs \
-            stream/simple1_measureSrc.hs \
-            partree/partree.hs \
-	    kmeans/kmeans.hs
-# binomial_lattice.hs
-# Note: not using all of the stream benchmarks at the moment.
+all: install
+install:
+	./generate_cabal.sh
+	cabal install
 
-ALLEXES= $(BENCHMARKS:.hs=.exe)
+# This can't reuse the vanilla "cabal install" version above because
+# it passes a bunch of different flags.
+test: 
+	ghc -rtsopts -threaded --make benchmark.hs -o benchmark.run
+	SHORTRUN=1 THREADS="1" ./benchmark.run --par --no-cabal +RTS -N
 
-# FILE EXTENSIONS USED:
-#   .hs   -- example source
-#   .exe  -- binary (used on all platforms)
-#   .out  -- output from "make test"
-#   .err  -- indicates a test has failed.
+validate: 
+	./generate_cabal.sh
+	cabal-dev install -s ../cabal-dev/
+	ghc -threaded --make benchmark.hs -o benchmark.run
+	SHORTRUN=1 THREADS="1" ./benchmark.run --no-recomp --par +RTS -N
 
-OUTS  = $(ALLEXES:.exe=.out)
-
-.SUFFIXES: .o .c .exe .out
-.PRECIOUS: $(ALLEXES) $(OUTS)
-
-all: $(ALLEXES) datasets 
-
-%.exe : %.hs $(ALLPARSRC)
-	@echo "Building executable: $@"
-	$(GHC) $(GHC_FLAGS) --make -i.. -i$(shell dirname $<) $< -o $@ -rtsopts
-
-# ================================================================================
-# Testing:
-
-test: all $(OUTS)
-	@echo 
-	@echo ========================================
-	@echo "Finally, checking for .err files:"
-	find -name "*.err"
-
-.exe.out:
-# We touch a .err file and then remove it if there is no error.
-	@touch "$(<:.exe=.err)"
-	@echo 
-	@echo ====================================================================================================
-	@echo RUNNING TEST $<
-	@echo "(Displaying up 20 lines of output):"
-	@echo ----------------------------------------	
-# This makes it difficult to get the error code:
-#	./$<  &> /dev/stdout | tee "$@" | head -n 20
-	"./$<"  &> $@ 
-	@head -n 20 $@
-#	@tail -F $@ | head -n 20
-	@echo Done Running test.  Exited successfully.
-	@echo ----------------------------------------
-	@rm -f "$(<:.exe=.err)"
-
-# DANGER DANGER:
-wiperesults:
-	rm -f results_*.dat results_*.dat.*
-	rm -f bench_*.log bench_*.log.*
-
-
-# ================================================================================
-# Benchmarking infrastructure:
-
-bench: benchmark.run
-benchmark.run: benchmark.hs
-	ghc --make benchmark.hs -o benchmark.run -threaded -rtsopts
-
-# ================================================================================
-datasets:
-	(cd cholesky; ./get_cholesky_data.sh)
-	(cd kmeans;   ./get_kmeans_data.sh)
-
-# ================================================================================
-# Install dependencies used by test programs.
-#
-# These are not included in the .cabal file because we don't want to
-# increase the dependencies for the monad-par package as a whole.
-install-deps: deps
-deps:
-	cabal install parallel fft carray --with-ghc=$(GHC)
-# For kmeans:
-	cabal install mersenne-random --with-ghc=$(GHC)
-	cabal install binary --with-ghc=$(GHC)
-
-# Redifen clean from common.mk
 clean:
-	rm -f $(ALLEXES) *.o *.hi *.out *.exe
-	rm -rf build_*_threaded*
-	rm -rf build_*_serial*
-	rm -f $(ALLEXES) */*.o */*.hi */*.out */*.exe
-	rm -rf */build_*_threaded*
-	rm -rf */build_*_serial*
+	cabal clean || echo 
+	rm -rf bin
 
-distclean: clean
-	rm -f benchmark.run
-
-# ================================================================================
-
-fib: parfib_monad.exe parfib_pseq.exe
+# TODO: A cheap way to run everything for a quick test without having to
+# rely on the benchmark script.
+# runall:
+# 	./bin/parfib.exe
+# 	./bin/mandel.exe
